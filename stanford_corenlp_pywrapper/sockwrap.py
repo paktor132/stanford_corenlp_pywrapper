@@ -132,11 +132,20 @@ class SockWrap:
         cmd = "PARSEDOC\t%s" % json.dumps(text)
         return self.send_command_and_parse_result(cmd, timeout)
 
-    def get_socket(self):
+    def get_socket(self, num_retries=3, retry_interval=1):
         # could be smarter here about reusing the same socket?
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect(('localhost', self.server_port))
-        return sock
+        for trial in range(num_retries):
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                # sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # not sure if this is needed?
+                sock.connect(('localhost', self.server_port))
+                return sock
+            except (socket.error, socket.timeout) as e:
+                LOG.info("socket error when making connection (%s)" % e)
+                if trial < num_retries-1:
+                    LOG.info("pausing before retry")
+                    time.sleep(retry_interval)
+        assert False, "couldnt connect socket"
 
     def send_command_and_parse_result(self, cmd, timeout):
         try:
